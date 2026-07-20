@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "exportedAt": "2026-07-20T00:00:00.000Z",
+  "entries": [
+    {"id":"2026-07-19-alice","player":"Alice","date":"2026-07-19","guesses":"3","addedAt":1},
+    {"id":"2026-07-19-bob","player":"Bob","date":"2026-07-19","guesses":"4","addedAt":1},
+    {"id":"2026-07-18-alice","player":"Alice","date":"2026-07-18","guesses":"2","addedAt":1},
+    {"id":"2026-07-18-bob","player":"Bob","date":"2026-07-18","guesses":"X","addedAt":1}
+  ]
+}
