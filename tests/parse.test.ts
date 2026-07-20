@@ -24,6 +24,13 @@ describe("parseHeaderDate", () => {
     expect(parseHeaderDate("05/06/2026", "mmdd")).toBe("2026-05-06");
   });
 
+  it("accepts day/month without year (phone copy)", () => {
+    const y = new Date().getFullYear();
+    // 20/7 is unambiguously day 20 month 7 under ddmm
+    expect(parseHeaderDate("20/7", "ddmm")).toBe(`${y}-07-20`);
+    expect(parseHeaderDate("20/07", "ddmm")).toBe(`${y}-07-20`);
+  });
+
   it("rejects impossible months under DD/MM when first is day>12 and second invalid", () => {
     expect(parseHeaderDate("07/19/2026", "ddmm")).toBeNull();
   });
@@ -43,6 +50,57 @@ describe("parseChatDump", () => {
     const raw = `19/07/2026, 8:02 am - Sarah: Wordle 1,489 3/6`;
     const rows = parseChatDump(raw, "ddmm");
     expect(rows[0]?.guesses).toBe("3");
+  });
+
+  it("parses multi-player iOS-style paste without years (owner sample)", () => {
+    // Includes narrow no-break space before am/pm (common on iOS copy)
+    const nbsp = "\u202F";
+    const raw = `[20/7, 10:13${nbsp}am] Andrew: Wordle 1,857 4/6
+
+⬛⬛⬛⬛🟨
+⬛🟩🟨🟩⬛
+⬛🟩🟨🟩🟩
+🟩🟩🟩🟩🟩
+[20/7, 1:51${nbsp}pm] Tati 🪿: Wordle 1,857 5/6
+
+⬜⬜⬜⬜⬜
+⬜⬜⬜⬜⬜
+⬜🟨⬜🟩🟨
+⬜🟩🟨🟩🟩
+🟩🟩🟩🟩🟩
+[20/7, 3:28${nbsp}pm] Angelina Khoury: Wordle 1,857 5/6
+
+⬜⬜⬜⬜⬜
+⬜⬜🟨🟨⬜
+🟨🟩⬜🟩🟨
+⬜🟩🟨🟩🟩
+🟩🟩🟩🟩🟩
+[20/7, 3:30${nbsp}pm] Annalise Khoury: Wordle 1,857 5/6
+
+🟩🟨⬜⬜⬜
+🟩⬜🟨⬜⬜
+🟩⬜⬜🟩🟩
+🟩🟩⬜🟩🟩
+🟩🟩🟩🟩🟩
+[20/7, 3:35${nbsp}pm] Annabella Khoury: Wordle 1,857 4/6
+
+⬜⬜🟨🟨🟨
+⬜🟩🟩🟩🟩
+⬜🟩🟩🟩🟩
+🟩🟩🟩🟩🟩`;
+
+    const rows = parseChatDump(raw, "ddmm");
+    expect(rows).toHaveLength(5);
+    const y = new Date().getFullYear();
+    expect(rows.map((r) => r.player)).toEqual([
+      "Andrew",
+      "Tati 🪿",
+      "Angelina Khoury",
+      "Annalise Khoury",
+      "Annabella Khoury",
+    ]);
+    expect(rows.map((r) => r.guesses)).toEqual(["4", "5", "5", "5", "4"]);
+    expect(rows.every((r) => r.date === `${y}-07-20`)).toBe(true);
   });
 });
 
