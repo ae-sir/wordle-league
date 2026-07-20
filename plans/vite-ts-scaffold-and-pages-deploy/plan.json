@@ -1,0 +1,45 @@
+{
+  "id": "vite-ts-scaffold-and-pages-deploy",
+  "num": "01",
+  "title": "Vite + TS scaffold & GitHub Pages deploy",
+  "tagline": "Node 22 toolchain, Vite base path, Actions-based Pages — replace legacy branch deploy.",
+  "branch": "feat/vite-ts-pages",
+  "effort": "M — ~0.5–1 day (scaffold + workflow + smoke)",
+  "risk": "Medium — wrong base path 404s all assets on production only; Pages source switch is one-way until verified",
+  "headline": "Repo is pure static files on <strong>legacy Pages</strong> (<code>main</code> root). No Node, no build, no CI. Node 20 is not a current bug — it is a <strong>trap to avoid</strong> when scaffolding (EOL April 2026). Target Node 22, <code>base: '/wordle-league/'</code>, and Actions → <code>dist</code>.",
+  "docs": ["proposal.md", "tasks.md"],
+  "decisions": [
+    {
+      "id": "ui_framework",
+      "q": "UI layer for the eventual port (scaffold should match)",
+      "help": "Both audits recommend vanilla TS for this surface area (~800 LOC). Preact is the light alternative if you want components without React weight.",
+      "options": [
+        { "v": "vanilla", "label": "Vanilla TypeScript + DOM (recommended)", "recommended": true },
+        { "v": "preact", "label": "Preact + signals (light components)" },
+        { "v": "react", "label": "React (heavier; only if you want the ecosystem)" }
+      ],
+      "default": "vanilla"
+    },
+    {
+      "id": "pages_cutover",
+      "q": "When to flip Pages source from branch → Actions",
+      "help": "Legacy branch deploy serves root files today. After Actions is green on a preview artifact check, flip repo Settings → Pages → GitHub Actions.",
+      "options": [
+        { "v": "after_scaffold_green", "label": "Flip as soon as scaffold build deploys a shell page (recommended)", "recommended": true },
+        { "v": "after_full_parity", "label": "Keep branch deploy until plan 03 UI parity is done (dual-maintain longer)" }
+      ],
+      "default": "after_scaffold_green"
+    },
+    {
+      "id": "package_manager",
+      "q": "Package manager",
+      "help": "No lockfile exists yet. Pick one and commit the lockfile in this plan.",
+      "options": [
+        { "v": "npm", "label": "npm (simplest; recommended)", "recommended": true },
+        { "v": "pnpm", "label": "pnpm" },
+        { "v": "bun", "label": "bun" }
+      ],
+      "default": "npm"
+    }
+  ]
+}

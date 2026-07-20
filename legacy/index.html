@@ -2,51 +2,54 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
 <title>Wordle League</title>
 <meta name="theme-color" content="#121213" />
-<link rel="manifest" href="/manifest.json" />
-<link rel="icon" href="/icon-192.png" />
-<link rel="apple-touch-icon" href="/icon-192.png" />
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icon-192.png" />
+<link rel="apple-touch-icon" href="icon-192.png" />
+<link rel="stylesheet" href="style.css" />
 </head>
 <body>
 <div id="app">
 
   <header class="app-header">
     <div class="tiles-title" id="titleTiles"></div>
-    <button id="syncBtn" class="btn-icon" type="button" title="Reload from storage" aria-label="Reload from storage">↻</button>
+    <button id="syncBtn" class="btn-icon" title="Reload from storage">↻</button>
   </header>
 
-  <nav class="tabs" role="tablist" aria-label="Main">
-    <button class="tab active" type="button" role="tab" data-tab="daily" aria-selected="true">Today</button>
-    <button class="tab" type="button" role="tab" data-tab="season" aria-selected="false">Leaderboard</button>
-    <button class="tab" type="button" role="tab" data-tab="add" aria-selected="false">+ Add</button>
-    <button class="tab" type="button" role="tab" data-tab="share" aria-selected="false">Share</button>
-    <button class="tab" type="button" role="tab" data-tab="backup" aria-selected="false">Backup</button>
+  <nav class="tabs">
+    <button class="tab active" data-tab="daily">Today</button>
+    <button class="tab" data-tab="season">Leaderboard</button>
+    <button class="tab" data-tab="add">+ Add</button>
+    <button class="tab" data-tab="share">Share</button>
+    <button class="tab" data-tab="backup">Backup</button>
   </nav>
 
-  <div id="status" class="status-line" role="status" aria-live="polite"></div>
+  <div id="status" class="status-line"></div>
 
   <main>
 
-    <section id="tab-daily" class="tab-panel active" role="tabpanel">
+    <!-- TODAY -->
+    <section id="tab-daily" class="tab-panel active">
       <div id="dailyEmpty" class="empty-state" style="display:none">
         <p>No scores yet. Add today's first result to start the league.</p>
-        <button class="btn-primary" type="button" data-goto="add">+ Add score</button>
+        <button class="btn-primary" data-goto="add">+ Add score</button>
       </div>
       <div id="dailyContent" style="display:none">
         <div class="row-controls">
-          <select id="dateSelect" aria-label="Select date"></select>
+          <select id="dateSelect"></select>
           <span id="dailyCount" class="dim small"></span>
         </div>
         <div id="dailyList" class="card-list"></div>
       </div>
     </section>
 
-    <section id="tab-season" class="tab-panel" role="tabpanel">
+    <!-- LEADERBOARD -->
+    <section id="tab-season" class="tab-panel">
       <div id="seasonEmpty" class="empty-state" style="display:none">
         <p>No scores yet. The table builds as results come in.</p>
-        <button class="btn-primary" type="button" data-goto="add">+ Add score</button>
+        <button class="btn-primary" data-goto="add">+ Add score</button>
       </div>
       <div id="seasonContent" style="display:none">
         <div class="table-header season-grid">
@@ -57,74 +60,74 @@
       </div>
     </section>
 
-    <section id="tab-add" class="tab-panel" role="tabpanel">
+    <!-- ADD -->
+    <section id="tab-add" class="tab-panel">
       <div class="mode-toggle">
-        <button class="mode-btn active" type="button" data-mode="paste">Paste chat text</button>
-        <button class="mode-btn" type="button" data-mode="manual">Manual entry</button>
+        <button class="mode-btn active" data-mode="paste">Paste chat text</button>
+        <button class="mode-btn" data-mode="manual">Manual entry</button>
       </div>
 
+      <!-- PASTE MODE -->
       <div id="mode-paste" class="mode-panel">
         <p class="dim tiny hint">Paste one person's Wordle share message, or a chunk of copied WhatsApp messages — either works.</p>
-        <label class="field-label" for="dateLocale">Chat date format</label>
-        <select id="dateLocale" aria-label="WhatsApp chat date format">
-          <option value="ddmm">DD/MM/YYYY (AU default)</option>
-          <option value="mmdd">MM/DD/YYYY (US)</option>
-        </select>
         <textarea id="pasteBox" rows="8" placeholder="Wordle 1,489 3/6&#10;&#10;⬛🟨⬛⬛⬛&#10;🟨🟩⬛⬛🟨&#10;🟩🟩🟩🟩🟩&#10;&#10;— or —&#10;&#10;[19/07/2026, 8:02 am] Sarah: Wordle 1,489 4/6&#10;..."></textarea>
 
         <div id="singleFallback" style="display:none" class="single-fallback">
           <div class="found-badge" id="singleFoundBadge"></div>
-          <label class="field-label" for="singlePlayer">Player</label>
-          <input id="singlePlayer" type="text" placeholder="Who played?" autocomplete="off" />
+          <label class="field-label">Player</label>
+          <input id="singlePlayer" type="text" placeholder="Who played?" />
           <div id="singlePlayerChips" class="chip-row"></div>
-          <label class="field-label" for="singleDate">Date</label>
+          <label class="field-label">Date</label>
           <input id="singleDate" type="date" />
-          <button id="singleSaveBtn" class="btn-primary full" type="button">Save score</button>
+          <button id="singleSaveBtn" class="btn-primary full">Save score</button>
         </div>
 
         <div id="bulkPreview" class="bulk-preview" style="display:none">
           <p class="dim small" id="bulkSummary"></p>
           <div id="bulkList" class="card-list"></div>
-          <button id="bulkSaveBtn" class="btn-primary full" type="button">Import results</button>
+          <button id="bulkSaveBtn" class="btn-primary full">Import results</button>
         </div>
 
         <p id="pasteError" class="error-text" style="display:none"></p>
       </div>
 
+      <!-- MANUAL MODE -->
       <div id="mode-manual" class="mode-panel" style="display:none">
-        <label class="field-label" for="manualPlayer">Player</label>
-        <input id="manualPlayer" type="text" placeholder="Who played?" autocomplete="off" />
+        <label class="field-label">Player</label>
+        <input id="manualPlayer" type="text" placeholder="Who played?" />
         <div id="manualPlayerChips" class="chip-row"></div>
 
         <label class="field-label">Guesses it took</label>
-        <div class="guess-grid" id="manualGuessGrid" role="group" aria-label="Guess count"></div>
+        <div class="guess-grid" id="manualGuessGrid"></div>
         <p class="dim tiny">X = didn't solve it</p>
 
-        <label class="field-label" for="manualDate">Date</label>
+        <label class="field-label">Date</label>
         <input id="manualDate" type="date" />
 
         <div id="manualReplace" class="replace-box" style="display:none"></div>
 
-        <button id="manualSaveBtn" class="btn-primary full" type="button">Save score</button>
+        <button id="manualSaveBtn" class="btn-primary full">Save score</button>
       </div>
     </section>
 
-    <section id="tab-share" class="tab-panel" role="tabpanel">
+    <!-- SHARE -->
+    <section id="tab-share" class="tab-panel">
       <div id="shareEmpty" class="empty-state" style="display:none">
         <p>Nothing to share yet — add a score first.</p>
-        <button class="btn-primary" type="button" data-goto="add">+ Add score</button>
+        <button class="btn-primary" data-goto="add">+ Add score</button>
       </div>
       <div id="shareContent" style="display:none">
         <div class="canvas-wrap">
-          <canvas id="recapCanvas" aria-label="League recap image"></canvas>
+          <canvas id="recapCanvas"></canvas>
         </div>
-        <button id="shareBtn" class="btn-primary full" type="button">📤 Share to WhatsApp</button>
-        <button id="downloadBtn" class="btn-outline full" type="button">⬇ Download image</button>
+        <button id="shareBtn" class="btn-primary full">📤 Share to WhatsApp</button>
+        <button id="downloadBtn" class="btn-outline full">⬇ Download image</button>
         <p id="shareNote" class="dim tiny" style="display:none"></p>
       </div>
     </section>
 
-    <section id="tab-backup" class="tab-panel" role="tabpanel">
+    <!-- BACKUP -->
+    <section id="tab-backup" class="tab-panel">
       <p class="dim tiny hint">
         Everything's stored in this browser only — clearing site data, reinstalling, or switching
         phones wipes it. Export a backup now and then, and keep the file somewhere safe (email it
@@ -132,7 +135,7 @@
         matching player+date entries get overwritten by the imported version.
       </p>
 
-      <button id="exportBtn" class="btn-primary full" type="button">⬇ Export backup (JSON)</button>
+      <button id="exportBtn" class="btn-primary full">⬇ Export backup (JSON)</button>
 
       <label class="btn-outline full" id="importLabel" style="display:block; text-align:center; margin-top:10px; cursor:pointer;">
         ⬆ Import backup
@@ -142,8 +145,8 @@
       <div id="importPreview" class="bulk-preview" style="display:none">
         <p class="dim small" id="importSummary"></p>
         <div class="replace-box" style="display:block; border-color: var(--border); background: var(--tile-empty);">
-          <button class="btn-yes" type="button" id="importConfirmBtn">Import</button>
-          <button class="btn-no" type="button" id="importCancelBtn">Cancel</button>
+          <button class="btn-yes" id="importConfirmBtn">Import</button>
+          <button class="btn-no" id="importCancelBtn">Cancel</button>
         </div>
       </div>
 
@@ -153,6 +156,6 @@
   </main>
 </div>
 
-<script type="module" src="/src/main.ts"></script>
+<script src="app.js"></script>
 </body>
 </html>
