@@ -1,31 +1,25 @@
 # Migration note (for maintainers / future LLMs)
 
-## What this repo used to be
+## Timeline
 
-A **zero-build static site** for a single-user Wordle league tracker:
+1. **Original** — zero-build static site: root `index.html` + `app.js` + `style.css`, GitHub Pages branch deploy, data in `localStorage` key `wordle-league-entries-v1`.
+2. **Vite + TypeScript** — domain/parse/storage extracted to pure modules; Vitest; vanilla DOM UI; `legacy/` briefly held the old tree for compare.
+3. **Current** — UI rebuilt with **React 19 + Tailwind CSS v4 + shadcn/ui**. Pure domain modules unchanged. **`legacy/` removed**; compare uses a temp extract of `origin/main`.
 
-- Root files: `index.html`, `app.js` (~800 LOC), `style.css`, `manifest.json`, icons
-- No `package.json`, no TypeScript, no tests, no bundler
-- Deployed as GitHub Pages **legacy branch deploy** (`main` → site root)
-- Data only in `localStorage` under key **`wordle-league-entries-v1`**
+## What this product is
 
-Behavior: tabs for Today / Leaderboard / Add (WhatsApp paste + manual) / Share (canvas PNG) / Backup (JSON).
+Phone-first single-user Wordle league tracker (Today / Leaderboard / Add / Share / Backup). No backend.
 
-## What it is now
+## Stack now
 
-Same product, rebuilt as a **Vite + TypeScript** SPA-style static app:
-
-| Before | After |
-|--------|--------|
-| Plain JS `app.js` | `src/**/*.ts` modules |
-| No types | TypeScript **strict** (`noUncheckedIndexedAccess`, etc.) |
-| No validation on load | **Zod** coerce/validate entries; drop bad rows |
-| No tests | **Vitest** for parse / scoring / backup |
-| No build | **Vite 6** → `dist/` |
-| Node N/A | Tooling requires **Node ≥ 22** |
-| Root static deploy | Still *capable* of GH Pages; prefer `VITE_BASE=/wordle-league/` when publishing `dist/` |
-
-UI remains **vanilla DOM** (no React). Manifest-only PWA (no service worker).
+| Piece | Tech |
+|-------|------|
+| UI | React 19, shadcn/ui (Radix), lucide-react |
+| CSS | Tailwind v4 via `@tailwindcss/vite` |
+| Build | Vite 6, TypeScript strict |
+| Data validation | Zod at load/import |
+| Tests | Vitest on domain/parse/storage |
+| Node for tooling | ≥ 22 |
 
 ## Compatibility contracts (do not break casually)
 
@@ -33,43 +27,35 @@ UI remains **vanilla DOM** (no React). Manifest-only PWA (no service worker).
 2. **Entry id** = `` `${date}-${player.toLowerCase()}` ``
 3. **Entry shape**: `{ id, player, date: YYYY-MM-DD, guesses: "1"…"6"|"X", addedAt }`
 4. **Scoring**: 1→6 … 6→1 pts, X→0; season sort points then avg guesses
-5. **Backup**: `{ schema: 1, exportedAt, entries }` or bare array of entries
-
-Breaking these without a migration path wipes or corrupts real league data on phones.
-
-## Where the old code went
-
-Pre-migration static tree lives under **`legacy/`** for local dual-run / visual comparison (`npm run legacy`, `npm run compare`). It is not the primary app. Safe to delete later once the Vite app is live on Pages and parity is trusted.
+5. **Backup**: `{ schema: 1, exportedAt, entries }` or bare array
 
 ## Layout map
 
 ```
-src/domain/    types, points, season, upsert
-src/parse/     Wordle share + WhatsApp chat + dates
-src/storage/   localStorage + backup (zod)
-src/ui/        canvas share, status, DOM helpers
-src/main.ts    UI wiring
-legacy/        old static site
-public/        icons, manifest, .nojekyll
-tests/         vitest
-fixtures/      sample backup JSON
+src/App.tsx           React shell + tabs
+src/components/ui/    shadcn primitives
+src/components/ShareCanvas.tsx
+src/domain/           types, points, season, upsert
+src/parse/            share, chat, dates, paste orchestrator
+src/storage/          localStorage + backup
+src/index.css         Tailwind + theme tokens (Wordle-ish dark greens)
 ```
 
-## Hardening added in the migration
+## Compare old vs new locally
 
-- Non-silent form validation; confirm on delete
-- Import size/row caps; invalid row skip
-- Chat date locale DD/MM (default) vs MM/DD setting
-- Optional display-name update when replacing same id with different casing
-- Manifest `start_url` / `scope` `./`; viewport allows zoom
+```bash
+git fetch origin main
+npm run compare
+```
 
-## Deploy status (as of migration)
+Serves `origin/main` static files on **:8780** and this app on **:5173**. No `legacy/` folder in git.
 
-Production URL may still serve the **old** static tree from `main` until Pages is switched to a Vite `dist/` publish. This migration branch does not by itself require Actions; cutover is a deliberate follow-up.
+## Deploy
 
-## Suggested agent orientation
+Production may still be the old static tree until Pages publishes Vite `dist/` with `base: '/wordle-league/'`. Cutover is deliberate, not automatic on merge.
 
-1. Read `README.md` for how to run.
-2. Treat `src/domain` + `src/parse` + `src/storage` as the source of truth for rules.
-3. Prefer extending pure modules + tests over growing `main.ts` only.
-4. Never change the storage key or id format without an explicit data migration.
+## Agent tips
+
+1. Keep scoring/parser logic in pure modules + tests; put UI in `App.tsx` / components.
+2. Add shadcn pieces with `npx shadcn@latest add <component>`.
+3. Never change the storage key or id format without a data migration.

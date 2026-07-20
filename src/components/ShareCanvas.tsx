@@ -1,8 +1,16 @@
-import { pointsFor } from "../domain/points";
-import { getDailyEntries, getDailyWinners, getSeason } from "../domain/season";
-import type { Entry } from "../domain/types";
-import { formatDate } from "../parse/dates";
-import { COLORS } from "./colors";
+import { useEffect, useRef } from "react";
+import { pointsFor } from "@/domain/points";
+import { getDailyEntries, getDailyWinners, getSeason } from "@/domain/season";
+import type { Entry } from "@/domain/types";
+import { formatDate } from "@/parse/dates";
+
+const COLORS = {
+  bg: "#121213",
+  tile: "#3A3A3C",
+  border: "#3A3A3C",
+  green: "#6AAA64",
+  dim: "#818384",
+} as const;
 
 function roundRect(
   ctx: CanvasRenderingContext2D,
@@ -21,7 +29,7 @@ function roundRect(
   ctx.closePath();
 }
 
-export function renderShareCanvas(
+function paint(
   canvas: HTMLCanvasElement,
   entries: Entry[],
   activeDate: string | null,
@@ -35,18 +43,9 @@ export function renderShareCanvas(
   const daily = activeDate ? getDailyEntries(entries, activeDate) : [];
   const winners = getDailyWinners(daily);
   const season = getSeason(entries);
-
   const padX = 32;
-  let y = 40;
-  y += 34;
-  y += 26;
-  y += 26;
-  y += daily.length * 54;
-  y += 30;
-  y += 24;
-  y += 26;
-  y += season.length * 44;
-  y += 40;
+
+  let y = 40 + 34 + 26 + 26 + daily.length * 54 + 30 + 24 + 26 + season.length * 44 + 40;
   const height = y + 20;
 
   canvas.width = width * scale;
@@ -93,8 +92,8 @@ export function renderShareCanvas(
     const won = winners.has(e.player);
     const rowH = 46;
     const rowW = width - padX * 2;
-    ctx.fillStyle = won ? "rgba(106,170,100,0.12)" : "transparent";
     if (won) {
+      ctx.fillStyle = "rgba(106,170,100,0.12)";
       roundRect(ctx, padX, cy, rowW, rowH, 6);
       ctx.fill();
     }
@@ -112,7 +111,7 @@ export function renderShareCanvas(
     ctx.fillStyle = "#fff";
     ctx.font = "800 12px Arial, sans-serif";
     ctx.fillText(
-      e.guesses === "X" ? "X" : e.guesses + "/6",
+      e.guesses === "X" ? "X" : `${e.guesses}/6`,
       badgeX + badgeSize / 2,
       badgeY + badgeSize / 2 + 1,
     );
@@ -120,8 +119,7 @@ export function renderShareCanvas(
     ctx.textAlign = "left";
     ctx.fillStyle = "#fff";
     ctx.font = "700 14px Arial, sans-serif";
-    const nameX = badgeX + badgeSize + 12;
-    ctx.fillText(e.player + (won ? "  👑" : ""), nameX, cy + rowH / 2 + 1);
+    ctx.fillText(e.player + (won ? "  👑" : ""), badgeX + badgeSize + 12, cy + rowH / 2 + 1);
 
     ctx.textAlign = "right";
     ctx.fillStyle = COLORS.dim;
@@ -153,8 +151,8 @@ export function renderShareCanvas(
     const rowH = 36;
     const rowW = width - padX * 2;
     const first = i === 0;
-    ctx.fillStyle = first ? "rgba(106,170,100,0.12)" : "transparent";
     if (first) {
+      ctx.fillStyle = "rgba(106,170,100,0.12)";
       roundRect(ctx, padX, cy, rowW, rowH, 5);
       ctx.fill();
     }
@@ -166,21 +164,17 @@ export function renderShareCanvas(
     ctx.fillStyle = first ? COLORS.green : COLORS.dim;
     ctx.font = "800 13px Arial, sans-serif";
     ctx.fillText(String(i + 1), cols[0] ?? 0, cy + rowH / 2 + 1);
-
     ctx.fillStyle = "#fff";
     ctx.font = "700 13px Arial, sans-serif";
     ctx.fillText(m.player, cols[1] ?? 0, cy + rowH / 2 + 1);
-
     ctx.textAlign = "right";
     ctx.fillStyle = first ? COLORS.green : "#fff";
     ctx.font = "800 13px Arial, sans-serif";
     ctx.fillText(String(m.points), cols[2] ?? 0, cy + rowH / 2 + 1);
-
     ctx.fillStyle = COLORS.dim;
     ctx.font = "12px Arial, sans-serif";
     ctx.fillText(String(m.wins), cols[3] ?? 0, cy + rowH / 2 + 1);
     ctx.fillText(m.avg, cols[4] ?? 0, cy + rowH / 2 + 1);
-
     cy += rowH + 6;
   });
 
@@ -189,4 +183,31 @@ export function renderShareCanvas(
   ctx.fillStyle = COLORS.dim;
   ctx.font = "10px Arial, sans-serif";
   ctx.fillText("Wordle League · auto-generated", width / 2, cy);
+}
+
+export function ShareCanvas({
+  entries,
+  activeDate,
+  className,
+  id,
+}: {
+  entries: Entry[];
+  activeDate: string | null;
+  className?: string;
+  id?: string;
+}) {
+  const ref = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (ref.current) paint(ref.current, entries, activeDate);
+  }, [entries, activeDate]);
+
+  return (
+    <canvas
+      id={id}
+      ref={ref}
+      className={className}
+      aria-label="League recap image"
+    />
+  );
 }

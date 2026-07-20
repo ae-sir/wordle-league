@@ -6,7 +6,7 @@ There is **no backend**. All league data lives in the browser’s `localStorage`
 
 **Live site (until Pages is cut over to this build):** https://ae-sir.github.io/wordle-league/
 
-For how this repo moved from a single static `app.js` page to Vite + TypeScript, see **[docs/MIGRATION.md](docs/MIGRATION.md)**.
+Migration history (static JS → Vite/TS → Tailwind/shadcn): **[docs/MIGRATION.md](docs/MIGRATION.md)**.
 
 ---
 
@@ -22,7 +22,7 @@ For how this repo moved from a single static `app.js` page to Vite + TypeScript,
 
 **Scoring:** `1/6` → 6 pts … `6/6` → 1 pt · `X` → 0. Daily win = lowest solved guess count (ties share the win). Season sort: points, then average guesses.
 
-**Data key:** `wordle-league-entries-v1` (stable across the migration so existing phone data keeps working).
+**Data key:** `wordle-league-entries-v1` (stable so existing phone data keeps working).
 
 ---
 
@@ -30,15 +30,17 @@ For how this repo moved from a single static `app.js` page to Vite + TypeScript,
 
 | Layer | Choice |
 |-------|--------|
+| UI | **React 19** + **shadcn/ui** (Radix) |
+| Styling | **Tailwind CSS v4** (`@tailwindcss/vite`) |
 | Language | **TypeScript** (strict) |
 | Bundler / dev server | **Vite 6** |
-| Tooling runtime | **Node.js ≥ 22** (the app runs in the browser) |
-| UI | **Vanilla DOM** |
+| Tooling runtime | **Node.js ≥ 22** |
 | Validation | **Zod** (storage / import) |
+| Icons | **lucide-react** |
 | Tests | **Vitest** |
 | Package manager | **npm** |
 | PWA | Manifest + icons (no service worker) |
-| Hosting target | **GitHub Pages** project site (`/wordle-league/`) when publishing `dist/` |
+| Hosting target | **GitHub Pages** (`/wordle-league/`) when publishing `dist/` |
 
 ---
 
@@ -95,6 +97,21 @@ VITE_BASE=/wordle-league/ npm run preview
 
 ---
 
+## Compare with pre-migration app
+
+Does **not** keep a `legacy/` folder in the repo. `npm run compare` extracts **`origin/main`** (old static site) into a temp dir and serves it next to this app:
+
+```bash
+git fetch origin main
+npm run compare
+# OLD (main static):  http://127.0.0.1:8780/
+# NEW (this branch):  http://127.0.0.1:5173/
+```
+
+Different ports = different origins = separate `localStorage`.
+
+---
+
 ## Checks
 
 ```bash
@@ -115,19 +132,22 @@ npm test
 | `npm run typecheck` | `tsc --noEmit` |
 | `npm test` | Vitest once |
 | `npm run test:watch` | Vitest watch mode |
-| `npm run legacy` | Serve pre-migration static app on `:8780` |
-| `npm run compare` | Legacy `:8780` + Vite `:5173` together |
+| `npm run compare` | Old `origin/main` on `:8780` + this app on `:5173` |
 
 ---
 
 ## Project layout
 
 ```
-src/            TypeScript app (domain, parse, storage, ui)
-legacy/         Pre-migration static site (optional compare)
-public/         Icons, manifest, .nojekyll
-tests/          Vitest
-fixtures/       Sample backup JSON
+src/
+  App.tsx              React UI (shadcn + Tailwind)
+  components/ui/       shadcn components
+  domain/              points, season, upsert (pure)
+  parse/               Wordle + WhatsApp parsers
+  storage/             localStorage + backup (zod)
+  lib/utils.ts         cn() helper
+public/                icons, manifest
+tests/                 Vitest
 docs/MIGRATION.md
 ```
 
@@ -135,4 +155,4 @@ docs/MIGRATION.md
 
 ## Deploy note
 
-This app builds to `dist/`. Until GitHub Pages is pointed at that build (e.g. Actions + `VITE_BASE=/wordle-league/`), the public URL may still serve the older static tree. See [docs/MIGRATION.md](docs/MIGRATION.md).
+This app builds to `dist/`. Until GitHub Pages is pointed at that build (e.g. Actions + `VITE_BASE=/wordle-league/`), the public URL may still serve the older static tree from `main`.

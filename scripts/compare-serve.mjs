@@ -1,18 +1,20 @@
 #!/usr/bin/env node
 /**
- * Side-by-side local demo:
- *   OLD (legacy static)  → http://<lan>:8780/
- *   NEW (Vite dev)       → http://<lan>:5173/
+ * Side-by-side local demo (does NOT deploy):
+ *   OLD — snapshot of origin/main (pre-migration static site) → :8780
+ *   NEW — this branch Vite app → :5173
  *
- * Does NOT deploy. Does NOT touch GitHub Pages.
- * Both use different origins → separate localStorage (seed via Backup import for parity checks).
+ * Old files are extracted to a temp dir; legacy/ is not kept in the repo.
  */
-import { spawn } from "node:child_process";
-import { networkInterfaces } from "node:os";
+import { spawn, execSync } from "node:child_process";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { networkInterfaces } from "node:os";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const tmp = mkdtempSync(join(tmpdir(), "wordle-league-old-"));
 
 function lanIPs() {
   const ips = [];
@@ -32,9 +34,30 @@ function run(cmd, args, name) {
   });
   child.on("exit", (code) => {
     console.error(`[${name}] exited ${code}`);
+    cleanup();
     process.exit(code ?? 1);
   });
   return child;
+}
+
+function cleanup() {
+  try {
+    rmSync(tmp, { recursive: true, force: true });
+  } catch {
+    /* ignore */
+  }
+}
+
+try {
+  execSync(`git archive origin/main | tar -x -C "${tmp}"`, {
+    cwd: root,
+    stdio: "inherit",
+    shell: true,
+  });
+} catch (e) {
+  console.error("Failed to extract origin/main for the old app. Fetch main first?");
+  cleanup();
+  process.exit(1);
 }
 
 const ips = lanIPs();
@@ -42,25 +65,34 @@ console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║  Wordle League — dual compare (local only, no deploy)        ║
 ╠══════════════════════════════════════════════════════════════╣
-║  OLD (legacy):  http://127.0.0.1:8780/                       ║
-║  NEW (vite):    http://127.0.0.1:5173/                       ║
-${ips.map((ip) => `║  OLD LAN:       http://${ip}:8780/`.padEnd(63) + "║\n" + `║  NEW LAN:       http://${ip}:5173/`.padEnd(63) + "║").join("\n")}
+║  OLD (origin/main static):  http://127.0.0.1:8780/           ║
+║  NEW (this branch Vite):    http://127.0.0.1:5173/           ║
+${ips
+  .map(
+    (ip) =>
+      `║  OLD LAN:  http://${ip}:8780/`.padEnd(63) +
+      "║\n" +
+      `║  NEW LAN:  http://${ip}:5173/`.padEnd(63) +
+      "║",
+  )
+  .join("\n")}
+║  Old extract: ${tmp.slice(0, 40)}…
 ╠══════════════════════════════════════════════════════════════╣
-║  Checklist: docs/COMPARE.md                                  ║
 ║  Ctrl+C stops both.                                          ║
 ╚══════════════════════════════════════════════════════════════╝
 `);
 
 const legacy = run(
   "npx",
-  ["--yes", "serve", "legacy", "-l", "8780", "--no-port-switching", "--cors"],
-  "legacy",
+  ["--yes", "serve", tmp, "-l", "8780", "--no-port-switching", "--cors"],
+  "old",
 );
-const vite = run("npx", ["vite", "--host", "0.0.0.0", "--port", "5173"], "vite");
+const vite = run("npx", ["vite", "--host", "0.0.0.0", "--port", "5173"], "new");
 
 function shutdown() {
   legacy.kill("SIGTERM");
   vite.kill("SIGTERM");
+  cleanup();
   process.exit(0);
 }
 process.on("SIGINT", shutdown);
