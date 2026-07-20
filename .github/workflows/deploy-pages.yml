@@ -5,24 +5,28 @@ on:
     branches: [main]
   workflow_dispatch:
 
-permissions:
-  contents: read
-  pages: write
-  id-token: write
-
+# Skip redeploy loops from the bot commit
 concurrency:
   group: pages
   cancel-in-progress: true
 
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
 jobs:
-  build:
+  build-and-publish:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: "22"
           cache: npm
@@ -36,19 +40,45 @@ jobs:
       - name: Test
         run: npm test
 
+      # Relative base so assets resolve under /wordle-league/ on project Pages
       - name: Build
         run: npm run build
         env:
-          # Project Pages site: https://<user>.github.io/wordle-league/
-          VITE_BASE: /wordle-league/
+          VITE_BASE: ./
 
+      - name: Publish built site to main (legacy Pages branch deploy)
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # Replace root site files with production build (legacy Pages serves main /)
+          rm -rf assets
+          cp -R dist/assets assets
+          cp dist/index.html index.html
+          cp dist/manifest.json manifest.json
+          cp dist/icon-192.png icon-192.png
+          cp dist/icon-512.png icon-512.png
+          # ensure Pages doesn't run Jekyll on underscores etc.
+          touch .nojekyll
+
+          git add -f index.html assets manifest.json icon-192.png icon-512.png .nojekyll
+          if git diff --staged --quiet; then
+            echo "No site changes to publish"
+          else
+            git commit -m "deploy: production static site for GitHub Pages [skip ci]"
+            git push origin HEAD:main
+          fi
+
+      # Also upload for Actions-based Pages (if source is switched to GitHub Actions)
       - name: Upload Pages artifact
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: dist
 
-  deploy:
-    needs: build
+  deploy-actions-pages:
+    if: ${{ !contains(github.event.head_commit.message, '[skip ci]') }}
+    needs: build-and-publish
     runs-on: ubuntu-latest
     environment:
       name: github-pages
@@ -57,3 +87,4 @@ jobs:
       - name: Deploy to GitHub Pages
         id: deployment
         uses: actions/deploy-pages@v4
+        continue-on-error: true

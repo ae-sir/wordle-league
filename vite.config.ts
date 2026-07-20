@@ -1,15 +1,41 @@
 import path from "node:path";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
+import type { Plugin } from "vite";
 import { defineConfig } from "vitest/config";
 
-// Local demo defaults to "/". For a GH Pages-shaped build later:
-//   VITE_BASE=/wordle-league/ npm run build
+// Local default "/". Production Pages build uses VITE_BASE=./ (relative assets).
 const base = process.env.VITE_BASE || "/";
+
+/**
+ * After CI publishes a production index.html (hashed ./assets/*), local
+ * `vite` / `vite build` still need the TypeScript entry. Strip bundle tags
+ * and ensure /src/main.tsx is the module entry for the Vite pipeline.
+ */
+function ensureViteEntry(): Plugin {
+  return {
+    name: "ensure-vite-entry",
+    transformIndexHtml: {
+      order: "pre",
+      handler(html) {
+        let next = html
+          .replace(/<script type="module"[^>]*src="\.\/assets\/[^"]*"[^>]*><\/script>\s*/gi, "")
+          .replace(/<link[^>]*href="\.\/assets\/[^"]*\.css"[^>]*>\s*/gi, "");
+        if (!/src\/main\.tsx/.test(next)) {
+          next = next.replace(
+            /<\/body>/i,
+            '    <script type="module" src="/src/main.tsx"></script>\n  </body>',
+          );
+        }
+        return next;
+      },
+    },
+  };
+}
 
 export default defineConfig({
   base,
-  plugins: [react(), tailwindcss()],
+  plugins: [ensureViteEntry(), react(), tailwindcss()],
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "./src"),
