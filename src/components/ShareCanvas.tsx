@@ -38,12 +38,12 @@ function paint(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
 
-  const width = 720;
+  const width = 420;
   const scale = 2;
   const daily = activeDate ? getDailyEntries(entries, activeDate) : [];
   const winners = getDailyWinners(daily);
   const season = getSeason(entries);
-  const padX = 32;
+  const padX = 20;
 
   let y = 40 + 34 + 26 + 26 + daily.length * 54 + 30 + 24 + 26 + season.length * 44 + 40;
   const height = y + 20;
