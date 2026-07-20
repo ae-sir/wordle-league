@@ -153,6 +153,13 @@ docs/MIGRATION.md
 
 ---
 
-## Deploy note
+## Deploy (GitHub Pages)
 
-This app builds to `dist/`. Until GitHub Pages is pointed at that build (e.g. Actions + `VITE_BASE=/wordle-league/`), the public URL may still serve the older static tree from `main`.
+Pushes to `main` run **Deploy to GitHub Pages** (`.github/workflows/deploy-pages.yml`):
+
+1. `npm ci` → typecheck → test → build with `VITE_BASE=/wordle-league/`
+2. Upload `dist/` and deploy via Actions
+
+Site: https://ae-sir.github.io/wordle-league/
+
+Repo Settings → Pages → Source must be **GitHub Actions** (not “Deploy from a branch”).

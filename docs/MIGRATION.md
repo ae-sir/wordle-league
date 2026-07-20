@@ -52,8 +52,7 @@ Serves `origin/main` static files on **:8780** and this app on **:5173**. No `le
 
 ## Deploy
 
-Production may still be the old static tree until Pages publishes Vite `dist/` with `base: '/wordle-league/'`. Cutover is deliberate, not automatic on merge.
-
+`main` deploys via GitHub Actions (`.github/workflows/deploy-pages.yml`) with `VITE_BASE=/wordle-league/`. Pages source should be **GitHub Actions**, not legacy branch root.
 ## Agent tips
 
 1. Keep scoring/parser logic in pure modules + tests; put UI in `App.tsx` / components.
