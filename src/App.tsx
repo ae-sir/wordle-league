@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Download,
+  Pencil,
   RefreshCw,
   Share2,
   Trash2,
@@ -40,7 +41,12 @@ import {
   getPlayers,
   getSeason,
 } from "@/domain/season";
-import { deleteEntry, mergeEntries, upsertEntry } from "@/domain/upsert";
+import { deleteEntry, entryId, mergeEntries, upsertEntry } from "@/domain/upsert";
+import {
+  finalizePlayerMerge,
+  planPlayerMerge,
+  type PlayerMergePlan,
+} from "@/domain/players";
 import type { BulkRow, DateLocale, Entry, Guesses } from "@/domain/types";
 import { formatDate, todayISO } from "@/parse/dates";
 import { analyzePaste } from "@/parse/paste";
@@ -106,6 +112,15 @@ export default function App() {
   // dialogs
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [clearAllOpen, setClearAllOpen] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+
+  // player rename / merge
+  const [renamingPlayer, setRenamingPlayer] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
+  const [mergeTargetName, setMergeTargetName] = useState("");
+  const [mergePlan, setMergePlan] = useState<PlayerMergePlan | null>(null);
+  const [mergeChoices, setMergeChoices] = useState<Record<string, Entry>>({});
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState<Entry | null>(null);
   const [replaceSource, setReplaceSource] = useState<"manual" | "single">("manual");
@@ -205,9 +220,18 @@ export default function App() {
       setReplaceOpen(true);
       return;
     }
+    const wasEditing = editingId !== null;
+    let nextEntries = result.entries;
+    if (editingId) {
+      const newId = entryId(input.date, input.player);
+      if (newId !== editingId) {
+        nextEntries = nextEntries.filter((e) => e.id !== editingId);
+      }
+      setEditingId(null);
+    }
     const label =
       input.guesses === "X" ? "X/6" : `${input.guesses}/6`;
-    persist(result.entries, `Saved: ${input.player} — ${label}`);
+    persist(nextEntries, `${wasEditing ? "Updated" : "Saved"}: ${input.player} — ${label}`);
     if (source === "manual") {
       setManualPlayer("");
       setManualGuesses("");
@@ -222,18 +246,36 @@ export default function App() {
     setTab("daily");
   };
 
-  const saveManual = (allowReplace = false, nameMode: "keep" | "update" = "keep") => {
+  const saveManual = (allowReplace?: boolean, nameMode?: "keep" | "update") => {
     const player = manualPlayer.trim();
     if (!player || !manualGuesses || !manualDate) {
       showStatus("Fill player, guesses, and date.", "error");
       return;
     }
+    const input = { player, date: manualDate, guesses: manualGuesses };
+    const isSelfEdit = editingId !== null && editingId === entryId(input.date, player);
     commitUpsert(
-      { player, date: manualDate, guesses: manualGuesses },
-      allowReplace,
-      nameMode,
+      input,
+      allowReplace ?? isSelfEdit,
+      nameMode ?? (editingId ? "update" : "keep"),
       "manual",
     );
+  };
+
+  const startEditEntry = (entry: Entry) => {
+    setManualPlayer(entry.player);
+    setManualGuesses(entry.guesses);
+    setManualDate(entry.date);
+    setEditingId(entry.id);
+    setAddMode("manual");
+    setTab("add");
+  };
+
+  const cancelEditEntry = () => {
+    setEditingId(null);
+    setManualPlayer("");
+    setManualGuesses("");
+    setManualDate(todayISO());
   };
 
   const saveSingle = (allowReplace = false, nameMode: "keep" | "update" = "keep") => {
@@ -291,6 +333,45 @@ export default function App() {
   const confirmClearAll = () => {
     setClearAllOpen(false);
     persist([], "Leaderboard cleared");
+  };
+
+  const startMerge = (sourceNames: string[], targetNameRaw: string) => {
+    const targetName = targetNameRaw.trim();
+    if (!targetName) {
+      showStatus("Enter a name to merge into.", "error");
+      return;
+    }
+    const plan = planPlayerMerge(entries, sourceNames, targetName);
+    if (plan.conflicts.length === 0) {
+      const next = finalizePlayerMerge(plan, targetName, {});
+      persist(next, `Merged into ${targetName}`);
+      setRenamingPlayer(null);
+      setSelectedForMerge(new Set());
+      setMergeTargetName("");
+      setMergePlan(null);
+      return;
+    }
+    setMergePlan(plan);
+    setMergeTargetName(targetName);
+    const defaults: Record<string, Entry> = {};
+    for (const c of plan.conflicts) defaults[c.date] = c.options[0];
+    setMergeChoices(defaults);
+  };
+
+  const confirmMerge = () => {
+    if (!mergePlan) return;
+    const next = finalizePlayerMerge(mergePlan, mergeTargetName, mergeChoices);
+    persist(next, `Merged into ${mergeTargetName}`);
+    setRenamingPlayer(null);
+    setSelectedForMerge(new Set());
+    setMergeTargetName("");
+    setMergePlan(null);
+    setMergeChoices({});
+  };
+
+  const cancelMerge = () => {
+    setMergePlan(null);
+    setMergeChoices({});
   };
 
   const exportBackup = () => {
@@ -510,6 +591,15 @@ export default function App() {
                           variant="ghost"
                           size="icon"
                           className="text-muted-foreground"
+                          aria-label={`Edit entry for ${e.player}`}
+                          onClick={() => startEditEntry(e)}
+                        >
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="text-muted-foreground"
                           aria-label={`Delete entry for ${e.player}`}
                           onClick={() => setDeleteId(e.id)}
                         >
@@ -589,7 +679,10 @@ export default function App() {
             <Button
               variant={addMode === "paste" ? "secondary" : "outline"}
               className="text-xs font-bold uppercase"
-              onClick={() => setAddMode("paste")}
+              onClick={() => {
+                setAddMode("paste");
+                if (editingId) cancelEditEntry();
+              }}
             >
               Paste chat text
             </Button>
@@ -765,9 +858,22 @@ export default function App() {
                   onChange={(e) => setManualDate(e.target.value)}
                 />
               </div>
-              <Button className="w-full font-extrabold uppercase" onClick={() => saveManual()}>
-                Save score
-              </Button>
+              {editingId && (
+                <p className="text-[11px] text-muted-foreground">Editing an existing result.</p>
+              )}
+              <div className="flex gap-2">
+                <Button
+                  className="w-full font-extrabold uppercase"
+                  onClick={() => saveManual()}
+                >
+                  {editingId ? "Update score" : "Save score"}
+                </Button>
+                {editingId && (
+                  <Button variant="outline" className="font-bold" onClick={cancelEditEntry}>
+                    Cancel
+                  </Button>
+                )}
+              </div>
             </div>
           )}
         </TabsContent>
@@ -847,7 +953,158 @@ export default function App() {
           )}
           {importError && <p className="text-xs text-destructive">{importError}</p>}
 
-          <div className="pt-4">
+          <div className="space-y-2 border-t border-border pt-4">
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Rename a player, or tick two or more names that are really the same person and
+              merge them into one.
+            </p>
+            {players.length === 0 ? (
+              <p className="text-xs text-muted-foreground">No players yet.</p>
+            ) : (
+              <div className="flex flex-col gap-2">
+                {players.map((p) => (
+                  <div
+                    key={p}
+                    className="flex items-center gap-2 rounded-md border border-border p-2"
+                  >
+                    <Checkbox
+                      aria-label={`Select ${p} for merge`}
+                      checked={selectedForMerge.has(p)}
+                      onCheckedChange={(c: boolean | "indeterminate") =>
+                        setSelectedForMerge((prev) => {
+                          const next = new Set(prev);
+                          if (c === true) next.add(p);
+                          else next.delete(p);
+                          return next;
+                        })
+                      }
+                    />
+                    {renamingPlayer === p ? (
+                      <>
+                        <Input
+                          autoFocus
+                          value={renameValue}
+                          onChange={(e) => setRenameValue(e.target.value)}
+                          className="h-8 flex-1"
+                        />
+                        <Button size="sm" onClick={() => startMerge([p], renameValue)}>
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setRenamingPlayer(null)}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="flex-1 truncate text-sm font-bold">{p}</span>
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label={`Rename ${p}`}
+                          onClick={() => {
+                            setRenamingPlayer(p);
+                            setRenameValue(p);
+                          }}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            {selectedForMerge.size >= 2 && (
+              <Card className="border-primary bg-card">
+                <CardContent className="space-y-2 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    Merge {selectedForMerge.size} selected names into:
+                  </p>
+                  <Input
+                    value={mergeTargetName}
+                    onChange={(e) => setMergeTargetName(e.target.value)}
+                    placeholder="Final player name"
+                  />
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      onClick={() =>
+                        startMerge(
+                          [...selectedForMerge],
+                          mergeTargetName || [...selectedForMerge][0],
+                        )
+                      }
+                    >
+                      Merge
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedForMerge(new Set());
+                        setMergeTargetName("");
+                      }}
+                    >
+                      Clear selection
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+            {mergePlan && mergePlan.conflicts.length > 0 && (
+              <Card className="border-yellow-500 bg-card">
+                <CardContent className="space-y-3 p-3">
+                  <p className="text-xs text-muted-foreground">
+                    These dates have more than one result among the names being merged — pick
+                    which one to keep for each. You can fine-tune the score afterwards from the
+                    Today tab.
+                  </p>
+                  {mergePlan.conflicts.map((c) => (
+                    <div key={c.date} className="space-y-1">
+                      <p className="text-[11px] font-bold uppercase text-muted-foreground">
+                        {formatDate(c.date)}
+                      </p>
+                      <div className="flex flex-col gap-1">
+                        {c.options.map((opt) => (
+                          <label
+                            key={opt.id}
+                            className="flex cursor-pointer items-center gap-2 rounded-md border border-border p-2 text-sm"
+                          >
+                            <input
+                              type="radio"
+                              name={`merge-${c.date}`}
+                              checked={mergeChoices[c.date]?.id === opt.id}
+                              onChange={() =>
+                                setMergeChoices((prev) => ({ ...prev, [c.date]: opt }))
+                              }
+                            />
+                            <span className="flex-1 truncate">{opt.player}</span>
+                            <span className="text-muted-foreground">
+                              {opt.guesses === "X" ? "X/6" : `${opt.guesses}/6`}
+                            </span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={confirmMerge}>
+                      Confirm merge
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={cancelMerge}>
+                      Cancel
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            )}
+          </div>
+
+          <div className="border-t border-border pt-4">
             <p className="text-[11px] leading-relaxed text-muted-foreground">
               Clearing wipes every result from this browser. There&apos;s no undo — export a
               backup first if you might want this data again.
