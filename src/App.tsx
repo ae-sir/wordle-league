@@ -105,6 +105,7 @@ export default function App() {
 
   // dialogs
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState<Entry | null>(null);
   const [replaceSource, setReplaceSource] = useState<"manual" | "single">("manual");
@@ -285,6 +286,11 @@ export default function App() {
     const next = deleteEntry(entries, deleteId);
     setDeleteId(null);
     persist(next, "Entry removed");
+  };
+
+  const confirmClearAll = () => {
+    setClearAllOpen(false);
+    persist([], "Leaderboard cleared");
   };
 
   const exportBackup = () => {
@@ -840,8 +846,41 @@ export default function App() {
             </Card>
           )}
           {importError && <p className="text-xs text-destructive">{importError}</p>}
+
+          <div className="pt-4">
+            <p className="text-[11px] leading-relaxed text-muted-foreground">
+              Clearing wipes every result from this browser. There&apos;s no undo — export a
+              backup first if you might want this data again.
+            </p>
+            <Button
+              variant="destructive"
+              className="mt-2 w-full font-extrabold uppercase"
+              disabled={entries.length === 0}
+              onClick={() => setClearAllOpen(true)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clear leaderboard
+            </Button>
+          </div>
         </TabsContent>
       </Tabs>
+
+      {/* Clear leaderboard confirm */}
+      <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear the entire leaderboard?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This deletes all {entries.length} result{entries.length === 1 ? "" : "s"} from this
+              browser. This cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmClearAll}>Clear everything</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/* Delete confirm */}
       <AlertDialog open={!!deleteId} onOpenChange={(o: boolean) => !o && setDeleteId(null)}>
