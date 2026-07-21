@@ -105,6 +105,7 @@ export default function App() {
 
   // dialogs
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [clearAllOpen, setClearAllOpen] = useState(false);
   const [replaceOpen, setReplaceOpen] = useState(false);
   const [replaceExisting, setReplaceExisting] = useState<Entry | null>(null);
   const [replaceSource, setReplaceSource] = useState<"manual" | "single">("manual");
@@ -285,6 +286,12 @@ export default function App() {
     const next = deleteEntry(entries, deleteId);
     setDeleteId(null);
     persist(next, "Entry removed");
+  };
+
+  const confirmClearAll = () => {
+    setClearAllOpen(false);
+    persist([], "Leaderboard cleared — all results removed");
+    setSelectedDate(null);
   };
 
   const exportBackup = () => {
@@ -840,6 +847,18 @@ export default function App() {
             </Card>
           )}
           {importError && <p className="text-xs text-destructive">{importError}</p>}
+
+          <div className="border-t border-border pt-3">
+            <Button
+              variant="outline"
+              className="w-full font-extrabold uppercase text-destructive hover:bg-destructive/10"
+              disabled={entries.length === 0}
+              onClick={() => setClearAllOpen(true)}
+            >
+              <Trash2 className="mr-2 h-4 w-4" />
+              Clear all data
+            </Button>
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -853,6 +872,26 @@ export default function App() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Clear all confirm */}
+      <AlertDialog open={clearAllOpen} onOpenChange={setClearAllOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Clear all data?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This deletes all {entries.length} result{entries.length === 1 ? "" : "s"} —
+              today&apos;s scores and the season leaderboard. This cannot be undone. Export a
+              backup first if you want to keep a copy.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction variant="destructive" onClick={confirmClearAll}>
+              Clear everything
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
