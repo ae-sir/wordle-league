@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { finalizePlayerMerge, planPlayerMerge } from "../src/domain/players";
+import { finalizePlayerMerge, findFirstNameMatches, planPlayerMerge } from "../src/domain/players";
 import type { Entry } from "../src/domain/types";
 
 function e(player: string, date: string, guesses: Entry["guesses"]): Entry {
@@ -57,5 +57,32 @@ describe("planPlayerMerge", () => {
     expect(bobEntries).toHaveLength(1);
     expect(bobEntries[0]?.guesses).toBe("5");
     expect(next).toHaveLength(2);
+  });
+});
+
+describe("findFirstNameMatches", () => {
+  it("flags a case-only difference", () => {
+    const suggestions = findFirstNameMatches(["Bob"], ["bob"]);
+    expect(suggestions).toEqual([{ incoming: "bob", existing: "Bob" }]);
+  });
+
+  it("flags a full name sharing an existing player's first name", () => {
+    const suggestions = findFirstNameMatches(["John", "Alice"], ["John Smith"]);
+    expect(suggestions).toEqual([{ incoming: "John Smith", existing: "John" }]);
+  });
+
+  it("does not flag an exact match", () => {
+    const suggestions = findFirstNameMatches(["Bob"], ["Bob"]);
+    expect(suggestions).toEqual([]);
+  });
+
+  it("does not flag unrelated names", () => {
+    const suggestions = findFirstNameMatches(["Bob"], ["Alice"]);
+    expect(suggestions).toEqual([]);
+  });
+
+  it("only flags each incoming name once", () => {
+    const suggestions = findFirstNameMatches(["Bob"], ["bob", "bob"]);
+    expect(suggestions).toHaveLength(1);
   });
 });

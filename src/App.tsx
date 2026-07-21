@@ -44,7 +44,9 @@ import {
 import { deleteEntry, entryId, mergeEntries, upsertEntry } from "@/domain/upsert";
 import {
   finalizePlayerMerge,
+  findFirstNameMatches,
   planPlayerMerge,
+  type NameMatchSuggestion,
   type PlayerMergePlan,
 } from "@/domain/players";
 import type { BulkRow, DateLocale, Entry, Guesses } from "@/domain/types";
@@ -130,6 +132,8 @@ export default function App() {
   const [pendingImport, setPendingImport] = useState<Entry[] | null>(null);
   const [importSummary, setImportSummary] = useState("");
   const [importError, setImportError] = useState<string | null>(null);
+  const [importNameSuggestions, setImportNameSuggestions] = useState<NameMatchSuggestion[]>([]);
+  const [confirmedRenames, setConfirmedRenames] = useState<Set<number>>(new Set());
   const [shareNote, setShareNote] = useState<string | null>(null);
 
   const showStatus = useCallback((msg: string, type: "ok" | "error") => {
@@ -354,7 +358,10 @@ export default function App() {
     setMergePlan(plan);
     setMergeTargetName(targetName);
     const defaults: Record<string, Entry> = {};
-    for (const c of plan.conflicts) defaults[c.date] = c.options[0];
+    for (const c of plan.conflicts) {
+      const first = c.options[0];
+      if (first) defaults[c.date] = first;
+    }
     setMergeChoices(defaults);
   };
 
@@ -387,6 +394,8 @@ export default function App() {
     if (!file) return;
     setImportError(null);
     setPendingImport(null);
+    setImportNameSuggestions([]);
+    setConfirmedRenames(new Set());
     if (file.size > 2 * 1024 * 1024) {
       setImportError("Backup file is too large (max 2 MB).");
       return;
@@ -414,6 +423,10 @@ export default function App() {
             ? `. ${overlapping} will overwrite an existing entry with the same player and date.`
             : ". None overlap with what's already here."),
       );
+      const incomingNames = [...new Set(result.valid.map((e) => e.player))];
+      const suggestions = findFirstNameMatches(players, incomingNames);
+      setImportNameSuggestions(suggestions);
+      setConfirmedRenames(new Set(suggestions.map((_, i) => i)));
     };
     reader.onerror = () => setImportError("Couldn't read that file.");
     reader.readAsText(file);
@@ -421,10 +434,29 @@ export default function App() {
 
   const confirmImport = () => {
     if (!pendingImport) return;
-    const next = mergeEntries(entries, pendingImport);
-    const count = pendingImport.length;
+    const renameMap = new Map<string, string>();
+    importNameSuggestions.forEach((s, i) => {
+      if (confirmedRenames.has(i)) renameMap.set(s.incoming, s.existing);
+    });
+    const toImport = renameMap.size
+      ? pendingImport.map((e) => {
+          const target = renameMap.get(e.player);
+          return target ? { ...e, player: target, id: entryId(e.date, target) } : e;
+        })
+      : pendingImport;
+    const next = mergeEntries(entries, toImport);
+    const count = toImport.length;
+    const mergedCount = renameMap.size;
     setPendingImport(null);
-    persist(next, `Imported ${count} score${count > 1 ? "s" : ""} from backup`);
+    setImportNameSuggestions([]);
+    setConfirmedRenames(new Set());
+    persist(
+      next,
+      `Imported ${count} score${count > 1 ? "s" : ""} from backup` +
+        (mergedCount > 0
+          ? ` (merged ${mergedCount} matching name${mergedCount > 1 ? "s" : ""})`
+          : ""),
+    );
   };
 
   const shareRecap = async () => {
@@ -936,6 +968,39 @@ export default function App() {
             <Card className="border-primary">
               <CardContent className="space-y-3 p-4">
                 <p className="text-sm text-muted-foreground">{importSummary}</p>
+                {importNameSuggestions.length > 0 && (
+                  <div className="space-y-2 rounded-md border border-yellow-500 p-3">
+                    <p className="text-xs text-muted-foreground">
+                      These incoming names look like they might be existing players — untick
+                      any that are actually different people.
+                    </p>
+                    <div className="flex flex-col gap-1">
+                      {importNameSuggestions.map((s, i) => (
+                        <label
+                          key={`${s.incoming}-${s.existing}`}
+                          className="flex cursor-pointer items-center gap-2 rounded-md border border-border p-2 text-sm"
+                        >
+                          <Checkbox
+                            checked={confirmedRenames.has(i)}
+                            onCheckedChange={(c: boolean | "indeterminate") =>
+                              setConfirmedRenames((prev) => {
+                                const next = new Set(prev);
+                                if (c === true) next.add(i);
+                                else next.delete(i);
+                                return next;
+                              })
+                            }
+                          />
+                          <span className="flex-1 truncate">
+                            <span className="font-bold">{s.incoming}</span>
+                            <span className="text-muted-foreground"> → merge into </span>
+                            <span className="font-bold">{s.existing}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
                 <div className="flex gap-2">
                   <Button onClick={confirmImport}>Import</Button>
                   <Button
@@ -943,6 +1008,8 @@ export default function App() {
                     onClick={() => {
                       setPendingImport(null);
                       setImportSummary("");
+                      setImportNameSuggestions([]);
+                      setConfirmedRenames(new Set());
                     }}
                   >
                     Cancel
@@ -1035,7 +1102,7 @@ export default function App() {
                       onClick={() =>
                         startMerge(
                           [...selectedForMerge],
-                          mergeTargetName || [...selectedForMerge][0],
+                          mergeTargetName || [...selectedForMerge][0] || "",
                         )
                       }
                     >
