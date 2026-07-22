@@ -132,7 +132,7 @@ function paint(
   cy += 14;
   ctx.fillStyle = COLORS.dim;
   ctx.font = "700 11px Arial, sans-serif";
-  ctx.fillText("SEASON STANDINGS", width / 2, cy);
+  ctx.fillText("OVERALL STANDINGS", width / 2, cy);
   cy += 22;
 
   const cols = [padX + 14, padX + 40, width - padX - 130, width - padX - 80, width - padX - 20];
