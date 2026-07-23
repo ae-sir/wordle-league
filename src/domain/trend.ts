@@ -54,3 +54,14 @@ export function getTrend(entries: Entry[]): PlayerTrend[] {
     points: byPlayer.get(player) ?? [],
   }));
 }
+
+/** Round a max value up to a clean axis ceiling (1/2/2.5/5/10 * 10^n). */
+export function niceMax(n: number): number {
+  if (n <= 0) return 1;
+  const pow = Math.pow(10, Math.floor(Math.log10(n)));
+  const steps = [1, 2, 2.5, 5, 10];
+  for (const s of steps) {
+    if (n <= s * pow) return s * pow;
+  }
+  return 10 * pow;
+}

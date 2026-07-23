@@ -1,6 +1,6 @@
 import { useMemo, useRef, useState } from "react";
 import { buildPlayerColors } from "@/domain/colors";
-import { getTrend, type PlayerTrend, type TrendPoint } from "@/domain/trend";
+import { getTrend, niceMax, type PlayerTrend, type TrendPoint } from "@/domain/trend";
 import type { Entry } from "@/domain/types";
 import { formatDate } from "@/parse/dates";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,8 @@ const SURFACE = "#141416"; // matches the app card background closely enough for
 const MUTED = "#898781";
 const GRID = "#2c2c2a";
 
-type ViewMode = "rank" | "points" | "overlay";
+export type TrendViewMode = "rank" | "points" | "overlay";
+type ViewMode = TrendViewMode;
 type LabelMode = "day" | "cumulative";
 
 const W = 640;
@@ -28,16 +29,6 @@ const MONTHS = [
 function shortDate(iso: string): string {
   const [, m, d] = iso.split("-");
   return `${MONTHS[parseInt(m ?? "1", 10) - 1] ?? ""} ${parseInt(d ?? "1", 10)}`;
-}
-
-function niceMax(n: number): number {
-  if (n <= 0) return 1;
-  const pow = Math.pow(10, Math.floor(Math.log10(n)));
-  const steps = [1, 2, 2.5, 5, 10];
-  for (const s of steps) {
-    if (n <= s * pow) return s * pow;
-  }
-  return 10 * pow;
 }
 
 export function TrendChart({ entries }: { entries: Entry[] }) {

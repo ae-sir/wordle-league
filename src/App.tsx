@@ -8,6 +8,7 @@ import {
   Upload,
 } from "lucide-react";
 import { ShareCanvas } from "@/components/ShareCanvas";
+import type { TrendViewMode } from "@/components/TrendChart";
 import { TrendChart } from "@/components/TrendChart";
 import {
   AlertDialog,
@@ -136,6 +137,7 @@ export default function App() {
   const [importNameSuggestions, setImportNameSuggestions] = useState<NameMatchSuggestion[]>([]);
   const [confirmedRenames, setConfirmedRenames] = useState<Set<number>>(new Set());
   const [shareNote, setShareNote] = useState<string | null>(null);
+  const [trendShareMode, setTrendShareMode] = useState<TrendViewMode>("rank");
 
   const showStatus = useCallback((msg: string, type: "ok" | "error") => {
     setStatus({ msg, type });
@@ -924,11 +926,35 @@ export default function App() {
             <EmptyState text="Nothing to share yet — add a score first." onAdd={() => setTab("add")} />
           ) : (
             <>
+              <div className="space-y-1.5">
+                <Label>Position-over-time plot to include</Label>
+                <div className="flex gap-1 rounded-md border border-border p-0.5">
+                  {(
+                    [
+                      ["rank", "Rank"],
+                      ["points", "Points"],
+                      ["overlay", "Overlay"],
+                    ] as const
+                  ).map(([v, label]) => (
+                    <Button
+                      key={v}
+                      type="button"
+                      size="sm"
+                      variant={trendShareMode === v ? "secondary" : "ghost"}
+                      className="flex-1 text-[11px] font-bold uppercase"
+                      onClick={() => setTrendShareMode(v)}
+                    >
+                      {label}
+                    </Button>
+                  ))}
+                </div>
+              </div>
               <div className="overflow-hidden rounded-lg border border-border">
                 <ShareCanvas
                   id="recapCanvas"
                   entries={entries}
                   activeDate={activeDate}
+                  trendMode={trendShareMode}
                   className="block w-full"
                 />
               </div>
