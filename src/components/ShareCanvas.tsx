@@ -2,8 +2,9 @@ import { useEffect, useRef } from "react";
 import { buildPlayerColors } from "@/domain/colors";
 import { pointsFor } from "@/domain/points";
 import { getDailyEntries, getDailyWinners, getSeason } from "@/domain/season";
-import { getTrend } from "@/domain/trend";
+import { getTrend, niceMax } from "@/domain/trend";
 import type { Entry } from "@/domain/types";
+import type { TrendViewMode } from "@/components/TrendChart";
 import { formatDate } from "@/parse/dates";
 
 const COLORS = {
@@ -35,6 +36,7 @@ function paint(
   canvas: HTMLCanvasElement,
   entries: Entry[],
   activeDate: string | null,
+  trendMode: TrendViewMode,
 ): void {
   if (entries.length === 0) return;
   const ctx = canvas.getContext("2d");
@@ -50,10 +52,15 @@ function paint(
   const trendDates = [...new Set(entries.map((e) => e.date))].sort();
   const trend = trendDates.length >= 2 ? getTrend(entries) : [];
   const trendColors = buildPlayerColors(trend.map((t) => t.player));
+  const maxCumPoints = niceMax(
+    Math.max(1, ...trend.flatMap((t) => t.points.map((p) => p.cumPoints))),
+  );
   const CHART_H = 110;
   const legendRows = trend.length > 0 ? Math.ceil(trend.length / 2) : 0;
   const trendBlockH =
-    trend.length > 0 ? 26 + 10 + CHART_H + 14 + legendRows * 16 + 10 : 0;
+    trend.length > 0
+      ? 26 + 10 + CHART_H + 14 + legendRows * 16 + 10 + (trendMode === "overlay" ? 14 : 0)
+      : 0;
 
   let y =
     40 + 34 + 26 + 26 + daily.length * 54 + 30 + 24 + 26 + season.length * 44 + 40 + trendBlockH;
@@ -194,7 +201,13 @@ function paint(
     ctx.textAlign = "center";
     ctx.fillStyle = COLORS.dim;
     ctx.font = "700 11px Arial, sans-serif";
-    ctx.fillText("POSITION OVER TIME", width / 2, cy);
+    const title =
+      trendMode === "rank"
+        ? "POSITION OVER TIME"
+        : trendMode === "points"
+          ? "POINTS OVER TIME"
+          : "POSITION & POINTS OVER TIME";
+    ctx.fillText(title, width / 2, cy);
     cy += 22;
 
     const chartX0 = padX + 18;
@@ -204,16 +217,11 @@ function paint(
     const totalPlayers = trend.length;
     const Y_PAD = 10; // top/bottom padding so the best/worst lines aren't flush on the edge
 
-    ctx.strokeStyle = COLORS.border;
-    ctx.lineWidth = 1;
-    for (let r = 1; r <= totalPlayers; r++) {
-      const gy =
-        chartY0 + Y_PAD + ((r - 1) / Math.max(1, totalPlayers - 1)) * (CHART_H - 2 * Y_PAD);
-      ctx.beginPath();
-      ctx.moveTo(chartX0, gy);
-      ctx.lineTo(chartX1, gy);
-      ctx.stroke();
-    }
+    // frac: 0 = top of the plot, 1 = bottom
+    const rankFrac = (rank: number) => (rank - 1) / Math.max(1, totalPlayers - 1);
+    const pointsFrac = (points: number) => 1 - points / maxCumPoints;
+    const yAtFrac = (frac: number) =>
+      chartY0 + Y_PAD + frac * (chartY1 - chartY0 - 2 * Y_PAD);
 
     const xAt = (date: string) => {
       const i = trendDates.indexOf(date);
@@ -222,42 +230,80 @@ function paint(
         (trendDates.length <= 1 ? 0 : (i / (trendDates.length - 1)) * (chartX1 - chartX0))
       );
     };
-    const yAt = (rank: number) =>
-      chartY0 +
-      Y_PAD +
-      ((rank - 1) / Math.max(1, totalPlayers - 1)) * (chartY1 - chartY0 - 2 * Y_PAD);
 
+    ctx.strokeStyle = COLORS.border;
+    ctx.lineWidth = 1;
     ctx.textAlign = "right";
     ctx.fillStyle = COLORS.dim;
     ctx.font = "700 9px Arial, sans-serif";
-    for (let r = 1; r <= totalPlayers; r++) {
-      ctx.fillText(String(r), chartX0 - 6, yAt(r) + 3);
+
+    if (trendMode === "rank") {
+      for (let r = 1; r <= totalPlayers; r++) {
+        const gy = yAtFrac(rankFrac(r));
+        ctx.beginPath();
+        ctx.moveTo(chartX0, gy);
+        ctx.lineTo(chartX1, gy);
+        ctx.stroke();
+        ctx.fillText(String(r), chartX0 - 6, gy + 3);
+      }
+    } else if (trendMode === "points") {
+      for (const v of [0, 0.25, 0.5, 0.75, 1]) {
+        const gy = yAtFrac(1 - v);
+        ctx.beginPath();
+        ctx.moveTo(chartX0, gy);
+        ctx.lineTo(chartX1, gy);
+        ctx.stroke();
+        ctx.fillText(String(Math.round(v * maxCumPoints)), chartX0 - 6, gy + 3);
+      }
+    } else {
+      for (const pct of [0, 25, 50, 75, 100]) {
+        const gy = yAtFrac(1 - pct / 100);
+        ctx.beginPath();
+        ctx.moveTo(chartX0, gy);
+        ctx.lineTo(chartX1, gy);
+        ctx.stroke();
+        ctx.fillText(`${pct}%`, chartX0 - 6, gy + 3);
+      }
     }
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     for (const t of trend) {
       const color = trendColors.get(t.player) ?? COLORS.dim;
-      ctx.strokeStyle = color;
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      t.points.forEach((p, i) => {
-        const px = xAt(p.date);
-        const py = yAt(p.rank);
-        if (i === 0) ctx.moveTo(px, py);
-        else ctx.lineTo(px, py);
-      });
-      ctx.stroke();
 
-      const last = t.points[t.points.length - 1];
-      if (last) {
-        ctx.fillStyle = color;
-        ctx.beginPath();
-        ctx.arc(xAt(last.date), yAt(last.rank), 4, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = COLORS.bg;
+      const drawLine = (frac: (p: (typeof t.points)[number]) => number, dashed: boolean) => {
+        ctx.strokeStyle = color;
         ctx.lineWidth = 2;
+        ctx.setLineDash(dashed ? [5, 4] : []);
+        ctx.beginPath();
+        t.points.forEach((p, i) => {
+          const px = xAt(p.date);
+          const py = yAtFrac(frac(p));
+          if (i === 0) ctx.moveTo(px, py);
+          else ctx.lineTo(px, py);
+        });
         ctx.stroke();
+        ctx.setLineDash([]);
+
+        const last = t.points[t.points.length - 1];
+        if (last) {
+          ctx.fillStyle = color;
+          ctx.beginPath();
+          ctx.arc(xAt(last.date), yAtFrac(frac(last)), 4, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.strokeStyle = COLORS.bg;
+          ctx.lineWidth = 2;
+          ctx.stroke();
+        }
+      };
+
+      if (trendMode === "rank") {
+        drawLine((p) => rankFrac(p.rank), false);
+      } else if (trendMode === "points") {
+        drawLine((p) => pointsFrac(p.cumPoints), false);
+      } else {
+        drawLine((p) => rankFrac(p.rank), false);
+        drawLine((p) => pointsFrac(p.cumPoints), true);
       }
     }
 
@@ -279,6 +325,14 @@ function paint(
       ctx.fillText(name, lx + 18, ly - 1);
     });
     cy += legendRows * 16 + 10;
+
+    if (trendMode === "overlay") {
+      ctx.textAlign = "center";
+      ctx.fillStyle = COLORS.dim;
+      ctx.font = "10px Arial, sans-serif";
+      ctx.fillText("Solid = rank · dashed = points, indexed to 0–100%", width / 2, cy);
+      cy += 14;
+    }
   }
 
   cy += trend.length > 0 ? 6 : 20;
@@ -291,19 +345,21 @@ function paint(
 export function ShareCanvas({
   entries,
   activeDate,
+  trendMode = "rank",
   className,
   id,
 }: {
   entries: Entry[];
   activeDate: string | null;
+  trendMode?: TrendViewMode;
   className?: string;
   id?: string;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
-    if (ref.current) paint(ref.current, entries, activeDate);
-  }, [entries, activeDate]);
+    if (ref.current) paint(ref.current, entries, activeDate, trendMode);
+  }, [entries, activeDate, trendMode]);
 
   return (
     <canvas
