@@ -74,19 +74,24 @@ export function TrendChart({ entries }: { entries: Entry[] }) {
     return PAD_L + (dates.length === 1 ? 0 : (i / (dates.length - 1)) * PLOT_W);
   };
 
+  // Vertical padding so the best/worst lines don't sit flush on the plot edge.
+  const Y_PAD_FRAC = 0.08;
+  const mapY = (frac: number) => PAD_T + (Y_PAD_FRAC + frac * (1 - 2 * Y_PAD_FRAC)) * PLOT_H;
+
   const yForRank = (rank: number, playerCount: number) => {
     const denom = Math.max(1, totalPlayers, playerCount) - 1;
     const frac = denom === 0 ? 0 : (rank - 1) / denom;
-    return PAD_T + frac * PLOT_H;
+    return mapY(frac);
   };
-  const yForPoints = (points: number) => PAD_T + (1 - points / maxCumPoints) * PLOT_H;
+  const yForPoints = (points: number) => mapY(1 - points / maxCumPoints);
   const yForIndexedRank = (rank: number, playerCount: number) => {
     const denom = Math.max(1, totalPlayers, playerCount) - 1;
-    const frac = denom === 0 ? 1 : 1 - (rank - 1) / denom;
-    return PAD_T + (1 - frac) * PLOT_H;
+    const frac = denom === 0 ? 0 : (rank - 1) / denom;
+    return mapY(frac);
   };
   const yForIndexedPoints = (points: number) =>
-    PAD_T + (1 - (maxCumPoints === 0 ? 0 : points / maxCumPoints)) * PLOT_H;
+    mapY(1 - (maxCumPoints === 0 ? 0 : points / maxCumPoints));
+  const yForIndexedPct = (pct: number) => mapY(1 - pct / 100);
 
   const linesFor = (mode: "rank" | "points") =>
     trends.map((t) => {
@@ -252,8 +257,8 @@ export function TrendChart({ entries }: { entries: Entry[] }) {
               key={`gi-${v}`}
               x1={PAD_L}
               x2={W - PAD_R}
-              y1={PAD_T + (1 - v / 100) * PLOT_H}
-              y2={PAD_T + (1 - v / 100) * PLOT_H}
+              y1={yForIndexedPct(v)}
+              y2={yForIndexedPct(v)}
               stroke={GRID}
               strokeWidth={1}
             />
@@ -291,7 +296,7 @@ export function TrendChart({ entries }: { entries: Entry[] }) {
             <text
               key={`yli-${v}`}
               x={PAD_L - 6}
-              y={PAD_T + (1 - v / 100) * PLOT_H + 3}
+              y={yForIndexedPct(v) + 3}
               textAnchor="end"
               fontSize={9}
               fill={MUTED}

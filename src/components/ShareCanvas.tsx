@@ -202,11 +202,13 @@ function paint(
     const chartY0 = cy;
     const chartY1 = cy + CHART_H;
     const totalPlayers = trend.length;
+    const Y_PAD = 10; // top/bottom padding so the best/worst lines aren't flush on the edge
 
     ctx.strokeStyle = COLORS.border;
     ctx.lineWidth = 1;
     for (let r = 1; r <= totalPlayers; r++) {
-      const gy = chartY0 + ((r - 1) / Math.max(1, totalPlayers - 1)) * CHART_H;
+      const gy =
+        chartY0 + Y_PAD + ((r - 1) / Math.max(1, totalPlayers - 1)) * (CHART_H - 2 * Y_PAD);
       ctx.beginPath();
       ctx.moveTo(chartX0, gy);
       ctx.lineTo(chartX1, gy);
@@ -221,7 +223,16 @@ function paint(
       );
     };
     const yAt = (rank: number) =>
-      chartY0 + ((rank - 1) / Math.max(1, totalPlayers - 1)) * (chartY1 - chartY0);
+      chartY0 +
+      Y_PAD +
+      ((rank - 1) / Math.max(1, totalPlayers - 1)) * (chartY1 - chartY0 - 2 * Y_PAD);
+
+    ctx.textAlign = "right";
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = "700 9px Arial, sans-serif";
+    for (let r = 1; r <= totalPlayers; r++) {
+      ctx.fillText(String(r), chartX0 - 6, yAt(r) + 3);
+    }
 
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
