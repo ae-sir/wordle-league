@@ -8,6 +8,7 @@ import {
   Upload,
 } from "lucide-react";
 import { ShareCanvas } from "@/components/ShareCanvas";
+import { TrendChart } from "@/components/TrendChart";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -78,9 +79,9 @@ function downloadBlob(blob: Blob, filename: string): void {
 function TitleTiles() {
   return (
     <div className="flex gap-1">
-      {"LEAGUE".split("").map((ch) => (
+      {"LEAGUE".split("").map((ch, i) => (
         <div
-          key={ch}
+          key={i}
           className="flex h-8 w-8 items-center justify-center rounded-sm bg-primary text-sm font-extrabold text-primary-foreground"
         >
           {ch}
@@ -701,6 +702,13 @@ export default function App() {
                 Scoring: 1/6 = 6 pts · 2/6 = 5 · 3/6 = 4 · 4/6 = 3 · 5/6 = 2 · 6/6 = 1 · X
                 = 0. Ties break by average guesses.
               </p>
+
+              <div className="border-t border-border pt-4">
+                <h2 className="mb-2 text-xs font-extrabold uppercase tracking-wide">
+                  Position over time
+                </h2>
+                <TrendChart entries={entries} />
+              </div>
             </>
           )}
         </TabsContent>

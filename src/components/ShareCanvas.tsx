@@ -1,6 +1,8 @@
 import { useEffect, useRef } from "react";
+import { buildPlayerColors } from "@/domain/colors";
 import { pointsFor } from "@/domain/points";
 import { getDailyEntries, getDailyWinners, getSeason } from "@/domain/season";
+import { getTrend } from "@/domain/trend";
 import type { Entry } from "@/domain/types";
 import { formatDate } from "@/parse/dates";
 
@@ -45,7 +47,16 @@ function paint(
   const season = getSeason(entries);
   const padX = 20;
 
-  let y = 40 + 34 + 26 + 26 + daily.length * 54 + 30 + 24 + 26 + season.length * 44 + 40;
+  const trendDates = [...new Set(entries.map((e) => e.date))].sort();
+  const trend = trendDates.length >= 2 ? getTrend(entries) : [];
+  const trendColors = buildPlayerColors(trend.map((t) => t.player));
+  const CHART_H = 110;
+  const legendRows = trend.length > 0 ? Math.ceil(trend.length / 2) : 0;
+  const trendBlockH =
+    trend.length > 0 ? 26 + 10 + CHART_H + 14 + legendRows * 16 + 10 : 0;
+
+  let y =
+    40 + 34 + 26 + 26 + daily.length * 54 + 30 + 24 + 26 + season.length * 44 + 40 + trendBlockH;
   const height = y + 20;
 
   canvas.width = width * scale;
@@ -178,7 +189,88 @@ function paint(
     cy += rowH + 6;
   });
 
-  cy += 20;
+  if (trend.length > 0) {
+    cy += 14;
+    ctx.textAlign = "center";
+    ctx.fillStyle = COLORS.dim;
+    ctx.font = "700 11px Arial, sans-serif";
+    ctx.fillText("POSITION OVER TIME", width / 2, cy);
+    cy += 22;
+
+    const chartX0 = padX + 18;
+    const chartX1 = width - padX;
+    const chartY0 = cy;
+    const chartY1 = cy + CHART_H;
+    const totalPlayers = trend.length;
+
+    ctx.strokeStyle = COLORS.border;
+    ctx.lineWidth = 1;
+    for (let r = 1; r <= totalPlayers; r++) {
+      const gy = chartY0 + ((r - 1) / Math.max(1, totalPlayers - 1)) * CHART_H;
+      ctx.beginPath();
+      ctx.moveTo(chartX0, gy);
+      ctx.lineTo(chartX1, gy);
+      ctx.stroke();
+    }
+
+    const xAt = (date: string) => {
+      const i = trendDates.indexOf(date);
+      return (
+        chartX0 +
+        (trendDates.length <= 1 ? 0 : (i / (trendDates.length - 1)) * (chartX1 - chartX0))
+      );
+    };
+    const yAt = (rank: number) =>
+      chartY0 + ((rank - 1) / Math.max(1, totalPlayers - 1)) * (chartY1 - chartY0);
+
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    for (const t of trend) {
+      const color = trendColors.get(t.player) ?? COLORS.dim;
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      t.points.forEach((p, i) => {
+        const px = xAt(p.date);
+        const py = yAt(p.rank);
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+
+      const last = t.points[t.points.length - 1];
+      if (last) {
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(xAt(last.date), yAt(last.rank), 4, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = COLORS.bg;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+      }
+    }
+
+    cy = chartY1 + 14;
+
+    ctx.textAlign = "left";
+    ctx.font = "700 10px Arial, sans-serif";
+    const legendColW = (width - padX * 2) / 2;
+    trend.forEach((t, i) => {
+      const col = i % 2;
+      const row = Math.floor(i / 2);
+      const lx = padX + col * legendColW;
+      const ly = cy + row * 16;
+      ctx.fillStyle = trendColors.get(t.player) ?? COLORS.dim;
+      roundRect(ctx, lx, ly - 8, 12, 8, 2);
+      ctx.fill();
+      ctx.fillStyle = "#fff";
+      const name = t.player.length > 16 ? `${t.player.slice(0, 15)}…` : t.player;
+      ctx.fillText(name, lx + 18, ly - 1);
+    });
+    cy += legendRows * 16 + 10;
+  }
+
+  cy += trend.length > 0 ? 6 : 20;
   ctx.textAlign = "center";
   ctx.fillStyle = COLORS.dim;
   ctx.font = "10px Arial, sans-serif";
